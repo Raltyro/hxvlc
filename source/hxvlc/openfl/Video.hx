@@ -34,6 +34,7 @@ import lime.utils.UInt8Array;
 
 import openfl.Lib;
 import openfl.display.BitmapData;
+import openfl.geom.Rectangle;
 
 import sys.thread.Mutex;
 
@@ -427,6 +428,9 @@ class Video extends openfl.display.Bitmap
 
 	@:noCompletion
 	private var texturePlanes:Null<BytesData>;
+
+	@:noCompletion
+	private var texturePlanesArray:Null<UInt8Array>;
 
 	#if lime_openal
 	@:noCompletion
@@ -873,6 +877,7 @@ class Video extends openfl.display.Bitmap
 			textureWidth = 0;
 			textureHeight = 0;
 			texturePlanes = null;
+			texturePlanesArray = null;
 		}
 
 		textureMutex.release();
@@ -1339,7 +1344,8 @@ class Video extends openfl.display.Bitmap
 		if (texturePlanes == null)
 			texturePlanes = new BytesData();
 
-		texturePlanes.resize(textureWidth * textureHeight * 4);
+		texturePlanes.setSize(textureWidth * textureHeight * 4);
+		texturePlanesArray = UInt8Array.fromBytes(Bytes.ofData(texturePlanes));
 
 		pitches[0] = textureWidth * 4;
 		lines[0] = textureHeight;
@@ -1347,48 +1353,48 @@ class Video extends openfl.display.Bitmap
 		textureMutex.release();
 
 		MainLoop.runInMainThread(function():Void
+		@:nullSafety(Off)
+		@:privateAccess
 		{
 			if (!isValid())
 				return;
 
 			textureMutex.acquire();
 
-			final sizeMismatch:Bool = bitmapData != null && (bitmapData.width != textureWidth || bitmapData.height != textureHeight);
-			final textureMismatch:Bool = bitmapData != null && bitmapData.__texture != null && !useTexture;
-			final imageMismatch:Bool = bitmapData != null && bitmapData.image != null && useTexture;
-
-			if (bitmapData == null || sizeMismatch || textureMismatch || imageMismatch)
+			if (bitmapData == null
+				|| bitmapData.width != textureWidth || bitmapData.height != textureHeight
+				|| (useTexture ? bitmapData.image != null && Lib.current.stage?.context3D != null : bitmapData.__texture != null))
 			{
 				if (bitmapData != null)
 				{
-					if (bitmapData.__texture != null)
-						bitmapData.__texture.dispose();
-
+					if (bitmapData.__texture != null) bitmapData.__texture.dispose();
 					bitmapData.dispose();
 				}
 
-				bitmapData = new BitmapData(textureWidth, textureHeight, true, 0);
-
+				if (useTexture)
 				{
-					@:privateAccess
-					if (useTexture)
+					if (Lib.current.stage?.context3D != null)
 					{
-						@:nullSafety(Off)
-						if (Lib.current.stage?.context3D != null)
-						{
-							bitmapData.disposeImage();
+						var texture = new VideoTexture(Lib.current.stage.context3D, textureWidth, textureHeight, texturePlanesArray);
+						texture.__getGLFramebuffer(false, 0, 0);
 
-							{
-								bitmapData.__texture = new VideoTexture(Lib.current.stage.context3D, bitmapData, textureWidth * textureHeight * 4);
-								bitmapData.__textureContext = bitmapData.__texture.__textureContext;
-								bitmapData.__surface = null;
-							}
-
-							bitmapData.image = null;
-						}
-						else
-							trace('Unable to utilize GPU texture, resorting to CPU-based image rendering.');
+						bitmapData = new BitmapData(0, 0, true, 0);
+						bitmapData.readable = false;
+						bitmapData.rect = new Rectangle(0, 0, textureWidth, textureHeight);
+						bitmapData.__texture = texture;
+						bitmapData.__textureContext = bitmapData.__texture.__textureContext;
+						bitmapData.__resize(textureWidth, textureHeight);
+						bitmapData.__isValid = true;
 					}
+					else
+					{
+						trace('Unable to utilize GPU texture, resorting to CPU-based image rendering.');
+						bitmapData = new BitmapData(textureWidth, textureHeight, true, 0);
+					}
+				}
+				else
+				{
+					bitmapData = new BitmapData(textureWidth, textureHeight, true, 0);
 				}
 
 				if (onFormatSetup != null)
@@ -1727,9 +1733,14 @@ class Video extends openfl.display.Bitmap
 	{
 		textureMutex.acquire();
 
-		if (texturePlanes != null)
+		if (texturePlanesArray != null)
+		@:nullSafety(Off)
+		@:privateAccess
 		{
-			bitmapData.image.buffer.data = UInt8Array.fromBytes(Bytes.ofData(texturePlanes));
+			//bitmapData.image.buffer.data.buffer.blit(0, texturePlanesArray, 0, bitmapData.image.buffer.data.byteLength);
+			Stdlib.nativeMemcpy(untyped bitmapData.image.buffer.data.buffer.getData().getBase().getBase(), untyped texturePlanes.getBase().getBase(),
+				bitmapData.image.buffer.data.byteLength);
+
 			bitmapData.image.dirty = true;
 			bitmapData.image.version++;
 		}
@@ -1747,7 +1758,7 @@ class Video extends openfl.display.Bitmap
 	{
 		MainLoop.runInMainThread(function():Void
 		{
-			if (!isValid() || bitmapData == null || texturePlanes == null)
+			if (!isValid() || bitmapData == null || texturePlanesArray == null)
 				return;
 
 			textureMutex.acquire();
@@ -1756,7 +1767,8 @@ class Video extends openfl.display.Bitmap
 
 			if (texture != null)
 			{
-				texture.uploadFromTypedArray(UInt8Array.fromBytes(Bytes.ofData(texturePlanes)));
+				texture.uploadFromTypedArray(texturePlanesArray);
+				bitmapData.__textureVersion++;
 
 				if (__renderable)
 					__setRenderDirty();
