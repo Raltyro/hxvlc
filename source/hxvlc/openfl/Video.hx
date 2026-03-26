@@ -1365,10 +1365,11 @@ class Video extends openfl.display.Bitmap
 			textureMutex.acquire();
 
 			final sizeMismatch:Bool = bitmapData != null && (bitmapData.width != textureWidth || bitmapData.height != textureHeight);
-			final textureMismatch:Bool = bitmapData != null && bitmapData.__texture != null && !useTexture;
-			final imageMismatch:Bool = bitmapData != null && bitmapData.image != null && useTexture;
+			final dataMismatch:Bool = bitmapData != null && (
+				if (useTexture) bitmapData.image != null && Lib.current.stage?.context3D != null
+				else bitmapData.__texture != null);
 
-			if (bitmapData == null || sizeMismatch || textureMismatch || imageMismatch)
+			if (bitmapData == null || sizeMismatch || dataMismatch)
 			{
 				if (bitmapData != null)
 				{
