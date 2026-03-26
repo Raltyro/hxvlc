@@ -39,7 +39,6 @@ import sys.thread.Mutex;
 
 using cpp.NativeArray;
 
-
 #if lime_openal
 import lime.media.openal.AL;
 import lime.media.openal.ALBuffer;
