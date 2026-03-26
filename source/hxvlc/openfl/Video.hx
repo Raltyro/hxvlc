@@ -873,9 +873,14 @@ class Video extends openfl.display.Bitmap
 				bitmapData.dispose();
 			}
 
+			if (texturePlanes != null)
+			{
+				texturePlanes.setSize(0);
+				texturePlanes = null;
+			}
+
 			textureWidth = 0;
 			textureHeight = 0;
-			texturePlanes = null;
 			texturePlanesArray = null;
 		}
 
