@@ -1343,7 +1343,7 @@ class Video extends openfl.display.Bitmap
 		if (texturePlanes == null)
 			texturePlanes = new BytesData();
 
-		texturePlanes.resize(textureWidth * textureHeight * 4);
+		texturePlanes.setSize(textureWidth * textureHeight * 4);
 
 		texturePlanesArray = UInt8Array.fromBytes(Bytes.ofData(texturePlanes));
 
