@@ -1,5 +1,8 @@
 package hxvlc.openfl;
 
+import lime.utils.ArrayBuffer;
+import lime.graphics.ImageBuffer;
+
 import cpp.CastCharStar;
 import cpp.Float32;
 import cpp.Int16;
@@ -1344,7 +1347,8 @@ class Video extends openfl.display.Bitmap
 		if (texturePlanes == null)
 			texturePlanes = new BytesData();
 
-		texturePlanes.setSize(textureWidth * textureHeight * 4);
+		texturePlanes.resize(textureWidth * textureHeight * 4);
+
 		texturePlanesArray = UInt8Array.fromBytes(Bytes.ofData(texturePlanes));
 
 		pitches[0] = textureWidth * 4;
@@ -1353,35 +1357,39 @@ class Video extends openfl.display.Bitmap
 		textureMutex.release();
 
 		MainLoop.runInMainThread(function():Void
-		@:nullSafety(Off)
-		@:privateAccess
 		{
 			if (!isValid())
 				return;
 
 			textureMutex.acquire();
 
-			if (bitmapData == null
-				|| bitmapData.width != textureWidth || bitmapData.height != textureHeight
-				|| (useTexture ? bitmapData.image != null && Lib.current.stage?.context3D != null : bitmapData.__texture != null))
+			final sizeMismatch:Bool = bitmapData != null && (bitmapData.width != textureWidth || bitmapData.height != textureHeight);
+			final textureMismatch:Bool = bitmapData != null && bitmapData.__texture != null && !useTexture;
+			final imageMismatch:Bool = bitmapData != null && bitmapData.image != null && useTexture;
+
+			if (bitmapData == null || sizeMismatch || textureMismatch || imageMismatch)
 			{
 				if (bitmapData != null)
 				{
-					if (bitmapData.__texture != null) bitmapData.__texture.dispose();
+					if (bitmapData.__texture != null)
+						bitmapData.__texture.dispose();
+
 					bitmapData.dispose();
 				}
 
 				if (useTexture)
 				{
+					@:privateAccess
 					if (Lib.current.stage?.context3D != null)
 					{
-						var texture = new VideoTexture(Lib.current.stage.context3D, textureWidth, textureHeight, texturePlanesArray);
-						texture.__getGLFramebuffer(false, 0, 0);
-
+						// This creates an image-less BitmapData
 						bitmapData = new BitmapData(0, 0, true, 0);
-						bitmapData.readable = false;
-						bitmapData.rect = new Rectangle(0, 0, textureWidth, textureHeight);
-						bitmapData.__texture = texture;
+
+						// Because the BitmapData doesnt have an image we set the bounds of it here
+						bitmapData.rect.setTo(0, 0, textureWidth, textureHeight);
+
+						// Allocates the Texture here so its a GPU BitmapData
+						bitmapData.__texture = new VideoTexture(Lib.current.stage.context3D, textureWidth, textureHeight, texturePlanesArray);
 						bitmapData.__textureContext = bitmapData.__texture.__textureContext;
 						bitmapData.__resize(textureWidth, textureHeight);
 						bitmapData.__isValid = true;
@@ -1733,15 +1741,16 @@ class Video extends openfl.display.Bitmap
 	{
 		textureMutex.acquire();
 
-		if (texturePlanesArray != null)
-		@:nullSafety(Off)
-		@:privateAccess
+		if (texturePlanes != null)
 		{
-			//bitmapData.image.buffer.data.buffer.blit(0, texturePlanesArray, 0, bitmapData.image.buffer.data.byteLength);
-			Stdlib.nativeMemcpy(untyped bitmapData.image.buffer.data.buffer.getData().getBase().getBase(), untyped texturePlanes.getBase().getBase(),
-				bitmapData.image.buffer.data.byteLength);
+			final dest:RawPointer<cpp.Void> = untyped bitmapData.image.buffer.data.buffer.getData().getBase().getBase();
+
+			final src:RawConstPointer<cpp.Void> = untyped texturePlanes.getBase().getBase();
+
+			Stdlib.nativeMemcpy(dest, src, bitmapData.image.buffer.data.buffer.byteLength);
 
 			bitmapData.image.dirty = true;
+
 			bitmapData.image.version++;
 		}
 
@@ -1768,6 +1777,7 @@ class Video extends openfl.display.Bitmap
 			if (texture != null)
 			{
 				texture.uploadFromTypedArray(texturePlanesArray);
+
 				bitmapData.__textureVersion++;
 
 				if (__renderable)

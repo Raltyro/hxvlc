@@ -38,9 +38,13 @@ class VideoTexture extends TextureBase
 		@:nullSafety(Off)
 		{
 			__context.__bindGLTexture2D(__textureID);
+
 			__context.gl.texImage2D(__textureTarget, 0, __internalFormat, __width, __height, 0, __format, __context.gl.UNSIGNED_BYTE, data);
+
 			__context.__bindGLTexture2D(null);
 		}
+
+		__getGLFramebuffer(false, 0, 0);
 	}
 
 	/**
