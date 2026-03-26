@@ -56,7 +56,8 @@ class VideoTexture extends TextureBase
 	 */
 	public function uploadFromTypedArray(data:UInt8Array):Void
 	{
-		if (data.length != __frameSize) return;
+		if (data.length != __frameSize)
+			return;
 
 		@:nullSafety(Off)
 		{

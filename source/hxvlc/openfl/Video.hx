@@ -1,8 +1,5 @@
 package hxvlc.openfl;
 
-import lime.utils.ArrayBuffer;
-import lime.graphics.ImageBuffer;
-
 import cpp.CastCharStar;
 import cpp.Float32;
 import cpp.Int16;
@@ -37,11 +34,11 @@ import lime.utils.UInt8Array;
 
 import openfl.Lib;
 import openfl.display.BitmapData;
-import openfl.geom.Rectangle;
 
 import sys.thread.Mutex;
 
 using cpp.NativeArray;
+
 
 #if lime_openal
 import lime.media.openal.AL;

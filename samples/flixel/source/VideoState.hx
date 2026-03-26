@@ -1,6 +1,5 @@
 package;
 
-import hxvlc.openfl.Video;
 import flixel.FlxG;
 import flixel.FlxState;
 import flixel.system.FlxAssets;
